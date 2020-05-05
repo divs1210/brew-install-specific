@@ -3,13 +3,17 @@
   (:require [clojure.string :as str]
             [clojure.pprint :refer [pprint]]
             [clj-http.client :as http]
-            [net.cgrand.enlive-html :as html]))
+            [net.cgrand.enlive-html :as html]
+            [clansi :refer [style]]))
 
 (defonce commits-url*
   "https://github.com/Homebrew/homebrew-core/commits/master/Formula/%s.rb")
 
 (defonce commit-url*
   "https://github.com/Homebrew/homebrew-core/tree/%s/Formula/%s.rb")
+
+(defonce install-url*
+  "https://raw.githubusercontent.com/Homebrew/homebrew-core/%s/Formula/%s.rb")
 
 (defn fetch-versions
   [package version data]
@@ -29,6 +33,10 @@
 
 (defn -main
   [& [package-at-version]]
+  (Thread/setDefaultUncaughtExceptionHandler
+   (reify Thread$UncaughtExceptionHandler
+     (uncaughtException [_ _ ex]
+       (println (style "Something went wrong." :red)))))
   (if-not (string? package-at-version)
     (println "Usage: brew-install-specific package@version")
     (let [[package version] (->> package-at-version
@@ -44,8 +52,21 @@
                               java.net.URI.)
               data (html/html-resource commits-uri)
               versions (fetch-versions package version data)]
-          (println "Versions:")
-          (doseq [{:keys [id msg url]} (sort-by :id versions)]
-            (println (str id ". " msg))
-            (print (-> id str count (+ 2) (repeat " ") str/join))
-            (println url "\n")))))))
+          (if (empty? versions)
+            (println (style "No matching commits found." :red))
+            (do
+              (println (style "Matching versions:" :yellow))
+              (doseq [{:keys [id msg url]} (sort-by :id versions)]
+                (print (style (str id ". ") :yellow))
+                (println (style msg :green))
+                (print (-> id str count (+ 2) (repeat " ") str/join))
+                (println (style url :yellow :underline)))
+
+              (print (style "\nSelect index: " :yellow))
+              (flush)
+              (let [sel-text (read-line)
+                    sel-id (Integer/valueOf sel-text)
+                    sel-item (nth versions (dec sel-id))]
+                (println (style "Run:\n  brew install" :yellow)
+                         (style (format install-url* (:sha sel-item) package)
+                                :green :underline))))))))))
