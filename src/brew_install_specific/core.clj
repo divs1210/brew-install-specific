@@ -8,8 +8,11 @@
 (defonce commits-url*
   "https://github.com/Homebrew/homebrew-core/commits/master/Formula/%s.rb")
 
+(defonce commit-url*
+  "https://github.com/Homebrew/homebrew-core/tree/%s/Formula/%s.rb")
+
 (defn fetch-versions
-  [data version]
+  [package version data]
   (let [i (atom 0)]
     (for [commit-title-element (html/select data [:p.commit-title :a])
           :let [{:keys [aria-label href]} (:attrs commit-title-element)
@@ -22,7 +25,7 @@
       {:id (swap! i inc)
        :msg commit-msg
        :sha commit-sha
-       :url (str "https://github.com/Homebrew/homebrew-core/commit/" commit-sha)})))
+       :url (format commit-url* commit-sha package)})))
 
 (defn -main
   [& [package-at-version]]
@@ -40,7 +43,9 @@
                               (format package)
                               java.net.URI.)
               data (html/html-resource commits-uri)
-              versions (fetch-versions data version)]
+              versions (fetch-versions package version data)]
           (println "Versions:")
           (doseq [{:keys [id msg url]} (sort-by :id versions)]
-            (println (str id ". " msg " " url))))))))
+            (println (str id ". " msg))
+            (print (-> id str count (+ 2) (repeat " ") str/join))
+            (println url "\n")))))))
