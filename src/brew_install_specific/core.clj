@@ -19,7 +19,7 @@
   (Thread/setDefaultUncaughtExceptionHandler
    (reify Thread$UncaughtExceptionHandler
      (uncaughtException [_ _ ex]
-       (println (style "Something went wrong." :red)))))
+       (println (style (.getMessage ex) :red)))))
   (if-not (string? package-at-version)
     (println "Usage: brew-install-specific package@version")
     (let [[package version] (->> package-at-version
@@ -38,7 +38,10 @@
             (println (style "No matching versions found." :red))
             (do
               (println (style "Matching versions:" :yellow))
-              (doseq [[idx {:keys [id msg]}] (map-indexed vector matching-commits)
+              (doseq [[idx {:keys [^org.eclipse.jgit.revwalk.RevCommit id
+                                   ^String msg]}]
+                      (map-indexed vector matching-commits)
+
                       :let [idx (inc idx)
                             sha (.getName id)
                             url (format commit-url* sha)]]
@@ -50,10 +53,11 @@
               (print (style "\nSelect index: " :yellow))
               (flush)
               (let [sel-text (read-line)
-                    sel-idx (Integer/valueOf sel-text)
+                    sel-idx (Integer/valueOf ^String sel-text)
                     sel-item (nth matching-commits (dec sel-idx))]
                 (println (style "Run:\n  brew install" :yellow)
                          (style (format install-url*
-                                        (-> sel-item :id .getName)
+                                        (.getName ^org.eclipse.jgit.revwalk.RevCommit
+                                                  (sel-item :id))
                                         package)
                                 :green :underline))))))))))
