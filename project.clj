@@ -8,7 +8,8 @@
                  [clj-jgit "1.0.0-beta3"]]
   :main ^:skip-aot brew-install-specific.core
   :target-path "target/%s"
-  :profiles {:uberjar {:aot :all}
+  :profiles {:uberjar {:aot :all
+                       :jvm-opts ["-Dclojure.compiler.direct-linking=true"]}
              :dev {:plugins [[lein-shell "0.5.0"]]}}
   :aliases
   {"native"
