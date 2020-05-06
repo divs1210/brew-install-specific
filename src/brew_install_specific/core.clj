@@ -4,7 +4,8 @@
             [clojure.pprint :refer [pprint]]
             [clj-http.client :as http]
             [net.cgrand.enlive-html :as html]
-            [clansi :refer [style]]))
+            [clansi :refer [style]])
+  (:import [java.net URI]))
 
 (defonce commits-url*
   "https://github.com/Homebrew/homebrew-core/commits/master/Formula/%s.rb")
@@ -20,7 +21,7 @@
   (let [i (atom 0)]
     (for [commit-title-element (html/select data [:p.commit-title :a])
           :let [{:keys [aria-label href]} (:attrs commit-title-element)
-                commit-msg aria-label
+                commit-msg (or aria-label "")
                 commit-sha (-> href
                                (str/replace-first "/Homebrew/homebrew-core/commit/" "")
                                (str/split #"#diff")
@@ -30,6 +31,17 @@
        :msg commit-msg
        :sha commit-sha
        :url (format commit-url* commit-sha package)})))
+
+(defn next-uri
+  [data]
+  (let [pagination-buttons (html/select data
+                                        [:.paginate-container
+                                         :.BtnGroup
+                                         :.BtnGroup-item])
+        next-page-button (last pagination-buttons)
+        href (-> next-page-button :attrs :href)]
+    (when-not (str/blank? href)
+      (URI. href))))
 
 (defn -main
   [& [package-at-version]]
@@ -47,26 +59,33 @@
       (if-not (and (seq package)
                    (seq version))
         (println "Usage: brew-install-specific package@version")
-        (let [commits-uri (-> commits-url*
-                              (format package)
-                              java.net.URI.)
-              data (html/html-resource commits-uri)
-              versions (fetch-versions package version data)]
-          (if (empty? versions)
-            (println (style "No matching commits found." :red))
-            (do
-              (println (style "Matching versions:" :yellow))
-              (doseq [{:keys [id msg url]} (sort-by :id versions)]
-                (print (style (str id ". ") :yellow))
-                (println (style msg :green))
-                (print (-> id str count (+ 2) (repeat " ") str/join))
-                (println (style url :yellow :underline)))
+        (loop [uri (-> commits-url*
+                       (format package)
+                       URI.)]
+          (let [data (html/html-resource uri)
+                versions (fetch-versions package version data)
+                next-uri (next-uri data)]
+            (cond
+              (seq versions)
+              (do
+                (println (style "Matching versions:" :yellow))
+                (doseq [{:keys [id msg url]} (sort-by :id versions)]
+                  (print (style (str id ". ") :yellow))
+                  (println (style msg :green))
+                  (print (-> id str count (+ 2) (repeat " ") str/join))
+                  (println (style url :yellow :underline)))
 
-              (print (style "\nSelect index: " :yellow))
-              (flush)
-              (let [sel-text (read-line)
-                    sel-id (Integer/valueOf sel-text)
-                    sel-item (nth versions (dec sel-id))]
-                (println (style "Run:\n  brew install" :yellow)
-                         (style (format install-url* (:sha sel-item) package)
-                                :green :underline))))))))))
+                (print (style "\nSelect index: " :yellow))
+                (flush)
+                (let [sel-text (read-line)
+                      sel-id (Integer/valueOf sel-text)
+                      sel-item (nth versions (dec sel-id))]
+                  (println (style "Run:\n  brew install" :yellow)
+                           (style (format install-url* (:sha sel-item) package)
+                                  :green :underline))))
+
+              (some? next-uri)
+              (recur next-uri)
+
+              :else
+              (println (style "No matching commits found." :red)))))))))
