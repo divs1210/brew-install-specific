@@ -4,7 +4,7 @@ Install specific versions of brew packages.
 
 ## Installation
 
-Download the latest release from [here](https://github.com/divs1210/brew-install-specific/releases).
+Download the latest release from [here](https://github.com/divs1210/brew-install-specific/releases) and put it on your `$PATH`.
 
 ## Usage
 
